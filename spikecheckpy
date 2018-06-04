@@ -1,0 +1,166 @@
+#!/usr/bin/env python
+#
+#       $Author: frederic $
+#       $Date: 2016/09/22 15:33:04 $
+#       $Id: spikepatch,v 1.7 2016/09/22 15:33:04 frederic Exp $
+#
+from __future__ import print_function
+import sys
+import re
+import os
+import time
+import subprocess
+import glob
+ 
+import re
+def grep(pattern,linelist):
+    r=[]
+    linenumber=0
+    for line in linelist:
+        linenumber +=1
+        if re.search(pattern,line):
+            r.append((linenumber,line))
+    return r
+
+
+def getniftihdritem(item):
+    matchinglines = grep(item, subprocess.check_output(['fslhd', inputfilename]).decode("utf-8").split('\n'))
+    for line in matchinglines:
+        splitline = line[1].split()
+        if(splitline[0] == item):
+            return splitline[1]
+    return None
+
+def zpad(thenum):
+    tempstring="000"+str(thenum)
+    return tempstring[-4:]
+
+def getlowervalid(theindex,spikearray):
+    if(theindex==0):
+        if(spikearray[theindex]==0):
+            return -1
+        else:
+            return spikearray[theindex]-1
+    if(spikearray[theindex]-spikearray[theindex-1]==1):
+        return(getlowervalid(theindex-1,spikearray))
+    else:
+        return(spikearray[theindex]-1)
+
+def getuppervalid(theindex,spikearray,upperlim):
+    if(theindex==len(spikearray)-1):
+        if(spikearray[theindex]==upperlim):
+            return -1
+        else:
+            return spikearray[theindex]+1
+    if(spikearray[theindex+1]-spikearray[theindex]==1):
+        return(getuppervalid(theindex+1,spikearray,upperlim))
+    else:
+        return(spikearray[theindex]+1)
+
+# read in the datafile
+numvoxthresh = 150
+percentthresh = 3.0
+
+if len(sys.argv) < 2 or len(sys.argv) > 4:
+    print("usage: spikecheck inputfile outputroot [percentthresh [numvoxthresh]]")
+    print("	inputfile:	the name of the 4D file to check for spikes")
+    print("	outputroot:	the base of all output filenames")
+    print("	percentthresh:	the percentage difference of a timepoint from it's mean to be flagged (default 5.0)")
+    print("		NOTE: if percentthresh is negative, use its absolute value, but mask the image first")
+    print("	numvoxthresh:	the number of voxels passing percentthresh at a timepoint to constitute a  spike (default 200)")
+    sys.exit()
+
+print(sys.argv, 'arguments')
+if len(sys.argv) == 3:
+    percentthresh=sys.argv[3]
+
+if len(sys.argv) == 3:
+    percentthresh=sys.argv[3]
+    numvoxthresh=sys.argv[4]
+
+inputfilename=sys.argv[1]
+outputfileroot=sys.argv[2]
+
+abspercentthresh = abs(percentthresh)
+sgnpercenthresh = percentthresh/abspercenthresh
+
+print("using threshold percentage of ", abspercentthresh, ", voxel threshold ", numvoxthresh)
+fslmaths $1 -Tmean immean -odt float
+set thresh = `fslstats immean -r | awk '{print $2/20.0}'`
+fslmaths immean -thr $thresh -bin immask -odt float
+set xsize = `fslhd immean | grep dim1 | egrep -v pixdim | awk '{print $2}'`
+set ysize = `fslhd immean | grep dim2 | egrep -v pixdim | awk '{print $2}'`
+set zsize = `fslhd immean | grep dim3 | egrep -v pixdim | awk '{print $2}'`
+if($sgnpercentthresh == "1") then
+    echo 'not masking'
+    fslmaths $1 -div immean -sub 1 -nan -abs \
+	-thr $abspercentthresh -bin -mul $xsize -mul $ysize -mul $zsize $2'_map' -odt int
+else
+    echo 'masking'
+    fslmaths $1 -div immean -sub 1 -nan -abs -mul immask \
+	-thr $abspercentthresh -bin -mul $xsize -mul $ysize -mul $zsize $2'_map' -odt int
+    endif
+fslmeants -i $2'_map' -o $2'_tc.txt'
+cat $2'_tc.txt' | awk '{ if($1>'$numvoxthresh') print NR-1}' > $2'_locs.txt'
+set numspikes = `cat $2'_locs.txt' | wc | awk '{print $1}'`
+cat $2'_tc.txt' | awk '{ if($1>'$numvoxthresh') print "1"; else print "0" }' > $2'_loctc.txt'
+echo $numspikes " spikes found"
+spikefilename=sys.argv[3]
+limret = int(getniftihdritem('dim4'))
+print('spike patching file with ',limret, ' volumes')
+upperlim=int(limret)-1
+
+spikearray = []
+uppersource = []
+lowersource = []
+spikefile = open(spikefilename)
+for line in spikefile:
+    spikearray.append(int(line))
+    uppersource.append(int(0))
+    lowersource.append(int(0))
+numspikes=len(spikearray)
+
+for i in range(0,numspikes):
+    lowersource[i]=getlowervalid(i,spikearray)
+    uppersource[i]=getuppervalid(i,spikearray,upperlim)
+    print("spike: ",i, ", loc=",spikearray[i], ", sources=",lowersource[i], ",",uppersource[i])
+
+subprocess.call(['mcflirt', '-in', inputfilename])
+subprocess.call(['fslsplit', inputfilename, 'patchvols_', '-t'])
+subprocess.call(['fslsplit', inputfilename + '_mcf', 'mcvols_', '-t'])
+for i in range(0,numspikes):
+    if(lowersource[i]==-1):
+        # extrapolate to beginning
+        print("replacing volume "+ str(zpad(spikearray[i])), " with "+str(zpad(uppersource[i]))+" (extrapolate to beginning)")
+        subprocess.call(['cp', 'mcvols_' + zpad(uppersource[i]) + '.nii.gz', 'patchvols_' + zpad(spikearray[i]) + '.nii.gz'])
+    else:
+        if(uppersource[i]==-1):
+            # extrapolate to end
+            print("replacing volume "+ str(zpad(spikearray[i])), " with "+str(zpad(lowersource[i]))+" (extrapolate to end)")
+            subprocess.call(['cp', 'mcvols_' + zpad(lowersource[i]) + '.nii.gz', 'patchvols_' + zpad(spikearray[i]) + '.nii.gz'])
+        else:
+            # interpolate between endpoints
+            therange=uppersource[i]-lowersource[i]
+            distance1=spikearray[i]-lowersource[i]
+            factor1=(1.0*distance1)/therange
+            factor2=1.0-factor1
+            print(therange, distance1, factor1, factor2)
+            print("replacing volume "+ str(zpad(spikearray[i])), " with interpolation from "+str(zpad(lowersource[i]))+" to "+str(zpad(uppersource[i])))
+            subprocess.call(['fslmaths', 'mcvols_' + zpad(lowersource[i]), '-mul', str(factor1), 'temp1'])
+            subprocess.call(['fslmaths', 'mcvols_' + zpad(uppersource[i]), '-mul', str(factor2), '-add', 'temp1', 'patchvols_' + zpad(spikearray[i])])
+            subprocess.call(['rm', 'temp1.nii.gz'])
+
+patchvollist = glob.glob('patchvols_*.nii.gz')
+mcvollist = glob.glob('mcvols_*.nii.gz')
+
+mergecommand = ['fslmerge', '-t', outputfilename]
+mergecommand.extend(patchvollist)
+subprocess.call(mergecommand)
+
+rmcmd = ['rm', inputfilename + '_mcf.nii.gz']
+rmcmd.extend(patchvollist)
+rmcmd.extend(mcvollist)
+
+subprocess.call(rmcmd)
+
+

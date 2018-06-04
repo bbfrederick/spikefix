@@ -1,0 +1,54 @@
+#!/bin/csh -f
+#
+#       $Author: frederic $
+#       $Date: 2015/01/23 16:44:48 $
+#       $Id: spikecheck,v 1.7 2015/01/23 16:44:48 frederic Exp $
+#
+set numvoxthresh=150
+set percentthresh=3.0
+
+set numargs=$#
+
+if($numargs == "0") then
+    echo "usage: spikecheck inputfile outputroot [percentthresh [numvoxthresh]]"
+    echo "	inputfile:	the name of the 4D file to check for spikes"
+    echo "	outputroot:	the base of all output filenames"
+    echo "	percentthresh:	the percentage difference of a timepoint from it's mean to be flagged (default 5.0)"
+    echo "		NOTE: if percentthresh is negative, use its absolute value, but mask the image first"
+    echo "	numvoxthresh:	the number of voxels passing percentthresh at a timepoint to constitute a  spike (default 200)"
+    exit()
+    endif
+
+if($numargs == "3") then
+    set percentthresh=$3
+    endif
+
+if($numargs == "4") then
+    set percentthresh=$3
+    set numvoxthresh=$4
+    endif
+
+set abspercentthresh=`echo $percentthresh | awk '{print 1.0*sqrt($1^2)}'`
+set sgnpercentthresh=`echo $abspercentthresh $percentthresh | awk '{print int($1/$2)}'`
+
+echo "using threshold percentage of "$abspercentthresh", voxel threshold "$numvoxthresh
+fslmaths $1 -Tmean $2'_immean' -odt float
+set thresh = `fslstats $2'_immean' -r | awk '{print $2/20.0}'`
+fslmaths $2'_immean' -thr $thresh -bin $2'_immask' -odt float
+set xsize = `fslhd $2'_immean' | grep dim1 | egrep -v pixdim | awk '{print $2}'`
+set ysize = `fslhd $2'_immean' | grep dim2 | egrep -v pixdim | awk '{print $2}'`
+set zsize = `fslhd $2'_immean' | grep dim3 | egrep -v pixdim | awk '{print $2}'`
+if($sgnpercentthresh == "1") then
+    echo 'not masking'
+    fslmaths $1 -div $2'_immean' -sub 1 -nan -abs \
+	-thr $abspercentthresh -bin -mul $xsize -mul $ysize -mul $zsize $2'_map' -odt int
+else
+    echo 'masking'
+    fslmaths $1 -div $2'_immean' -sub 1 -nan -abs -mul $2'_immask' \
+	-thr $abspercentthresh -bin -mul $xsize -mul $ysize -mul $zsize $2'_map' -odt int
+    endif
+fslmeants -i $2'_map' -o $2'_tc.txt'
+cat $2'_tc.txt' | awk '{ if($1>'$numvoxthresh') print NR-1}' > $2'_locs.txt'
+set numspikes = `cat $2'_locs.txt' | wc | awk '{print $1}'`
+cat $2'_tc.txt' | awk '{ if($1>'$numvoxthresh') print "1"; else print "0" }' > $2'_loctc.txt'
+echo $numspikes " spikes found"
