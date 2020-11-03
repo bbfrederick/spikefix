@@ -65,9 +65,9 @@ if len(sys.argv) < 2 or len(sys.argv) > 4:
     print("usage: spikecheck inputfile outputroot [percentthresh [numvoxthresh]]")
     print("	inputfile:	the name of the 4D file to check for spikes")
     print("	outputroot:	the base of all output filenames")
-    print("	percentthresh:	the percentage difference of a timepoint from it's mean to be flagged (default 5.0)")
+    print("	percentthresh:	the percentage difference of a timepoint from it's mean to be flagged (default", percentthresh, ")")
     print("		NOTE: if percentthresh is negative, use its absolute value, but mask the image first")
-    print("	numvoxthresh:	the number of voxels passing percentthresh at a timepoint to constitute a  spike (default 200)")
+    print("	numvoxthresh:	the number of voxels passing percentthresh at a timepoint to constitute a  spike (default", numvoxthresh, ")")
     sys.exit()
 
 print(sys.argv, 'arguments')
