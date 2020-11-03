@@ -6,71 +6,75 @@
 #
 from __future__ import print_function
 import sys
-import re
-import os
-import time
 import subprocess
 import glob
- 
+
 import re
-def grep(pattern,linelist):
-    r=[]
-    linenumber=0
-    for line in linelist:
-        linenumber +=1
-        if re.search(pattern,line):
-            r.append((linenumber,line))
+
+
+def grep(pattern, linelist):
+    r = []
+    linenumber = 0
+    for thisline in linelist:
+        linenumber += 1
+        if re.search(pattern, thisline):
+            r.append((linenumber, thisline))
     return r
 
 
 def getniftihdritem(item):
-    matchinglines = grep(item, subprocess.check_output(['fslhd', inputfilename]).decode("utf-8").split('\n'))
-    for line in matchinglines:
-        splitline = line[1].split()
-        if(splitline[0] == item):
+    matchinglines = grep(item, subprocess.check_output(['fslhd',
+                                                        inputfilename]).decode("utf-8").split('\n'))
+    for thisline in matchinglines:
+        splitline = thisline[1].split()
+        if splitline[0] == item:
             return splitline[1]
     return None
 
+
 def zpad(thenum):
-    tempstring="000"+str(thenum)
+    tempstring = "000" + str(thenum)
     return tempstring[-4:]
 
-def getlowervalid(theindex,spikearray):
-    if(theindex==0):
-        if(spikearray[theindex]==0):
-            return -1
-        else:
-            return spikearray[theindex]-1
-    if(spikearray[theindex]-spikearray[theindex-1]==1):
-        return(getlowervalid(theindex-1,spikearray))
-    else:
-        return(spikearray[theindex]-1)
 
-def getuppervalid(theindex,spikearray,upperlim):
-    if(theindex==len(spikearray)-1):
-        if(spikearray[theindex]==upperlim):
+def getlowervalid(theindex, thespikearray):
+    if theindex == 0:
+        if thespikearray[theindex] == 0:
             return -1
         else:
-            return spikearray[theindex]+1
-    if(spikearray[theindex+1]-spikearray[theindex]==1):
-        return(getuppervalid(theindex+1,spikearray,upperlim))
+            return thespikearray[theindex] - 1
+    if thespikearray[theindex] - thespikearray[theindex - 1] == 1:
+        return getlowervalid(theindex - 1, thespikearray)
     else:
-        return(spikearray[theindex]+1)
+        return thespikearray[theindex] - 1
+
+
+def getuppervalid(theindex, thespikearray, theupperlim):
+    if theindex == len(thespikearray) - 1:
+        if thespikearray[theindex] == upperlim:
+            return -1
+        else:
+            return thespikearray[theindex] + 1
+    if thespikearray[theindex + 1] - thespikearray[theindex] == 1:
+        return getuppervalid(theindex + 1, thespikearray, theupperlim)
+    else:
+        return thespikearray[theindex] + 1
+
 
 # read in the datafile
-if len(sys.argv)!=4:
+if len(sys.argv) != 4:
     print("usage: spikepatch inputdata outputdata spikelocs")
     print("    inputdata:       the name of the raw 4D data file")
     print("    outputdata:      the name of the despiked output file")
     print("    spikelocs:       text file listing the indices of the bad points (first point is 0), ")
     print("                        e.g. the XXX_locs.txt output of spikecheck")
     exit()
-inputfilename=sys.argv[1]
-outputfilename=sys.argv[2]
-spikefilename=sys.argv[3]
+inputfilename = sys.argv[1]
+outputfilename = sys.argv[2]
+spikefilename = sys.argv[3]
 limret = int(getniftihdritem('dim4'))
-print('spike patching file with ',limret, ' volumes')
-upperlim=int(limret)-1
+print('spike patching file with ', limret, ' volumes')
+upperlim = int(limret) - 1
 
 spikearray = []
 uppersource = []
@@ -80,37 +84,55 @@ for line in spikefile:
     spikearray.append(int(line))
     uppersource.append(int(0))
     lowersource.append(int(0))
-numspikes=len(spikearray)
+numspikes = len(spikearray)
 
-for i in range(0,numspikes):
-    lowersource[i]=getlowervalid(i,spikearray)
-    uppersource[i]=getuppervalid(i,spikearray,upperlim)
-    print("spike: ",i, ", loc=",spikearray[i], ", sources=",lowersource[i], ",",uppersource[i])
+for i in range(0, numspikes):
+    lowersource[i] = getlowervalid(i, spikearray)
+    uppersource[i] = getuppervalid(i, spikearray, upperlim)
+    print("spike: ", i, ", loc=", spikearray[i], ", sources=", lowersource[i], ",", uppersource[i])
 
 subprocess.call(['mcflirt', '-in', inputfilename])
 subprocess.call(['fslsplit', inputfilename, 'patchvols_', '-t'])
 subprocess.call(['fslsplit', inputfilename + '_mcf', 'mcvols_', '-t'])
-for i in range(0,numspikes):
-    if(lowersource[i]==-1):
+for i in range(0, numspikes):
+    if lowersource[i] == -1:
         # extrapolate to beginning
-        print("replacing volume "+ str(zpad(spikearray[i])), " with "+str(zpad(uppersource[i]))+" (extrapolate to beginning)")
-        subprocess.call(['cp', 'mcvols_' + zpad(uppersource[i]) + '.nii.gz', 'patchvols_' + zpad(spikearray[i]) + '.nii.gz'])
+        print("replacing volume " + str(zpad(spikearray[i])),
+              " with " + str(zpad(uppersource[i])) + " (extrapolate to beginning)")
+        subprocess.call(
+            ['cp',
+             'mcvols_' + zpad(uppersource[i]) + '.nii.gz',
+             'patchvols_' + zpad(spikearray[i]) + '.nii.gz'])
     else:
-        if(uppersource[i]==-1):
+        if uppersource[i] == -1:
             # extrapolate to end
-            print("replacing volume "+ str(zpad(spikearray[i])), " with "+str(zpad(lowersource[i]))+" (extrapolate to end)")
-            subprocess.call(['cp', 'mcvols_' + zpad(lowersource[i]) + '.nii.gz', 'patchvols_' + zpad(spikearray[i]) + '.nii.gz'])
+            print("replacing volume " + str(zpad(spikearray[i])),
+                  " with " + str(zpad(lowersource[i])) + " (extrapolate to end)")
+            subprocess.call(
+                ['cp',
+                 'mcvols_' + zpad(lowersource[i]) + '.nii.gz',
+                 'patchvols_' + zpad(spikearray[i]) + '.nii.gz'])
         else:
             # interpolate between endpoints
-            therange=uppersource[i]-lowersource[i]
-            distance1=spikearray[i]-lowersource[i]
-            factor1=(1.0*distance1)/therange
-            factor2=1.0-factor1
+            therange = uppersource[i] - lowersource[i]
+            distance1 = spikearray[i] - lowersource[i]
+            factor1 = (1.0 * distance1) / therange
+            factor2 = 1.0 - factor1
             print(therange, distance1, factor1, factor2)
-            print("replacing volume "+ str(zpad(spikearray[i])), " with interpolation from "+str(zpad(lowersource[i]))+" to "+str(zpad(uppersource[i])))
-            subprocess.call(['fslmaths', 'mcvols_' + zpad(lowersource[i]), '-mul', str(factor1), 'temp1'])
-            subprocess.call(['fslmaths', 'mcvols_' + zpad(uppersource[i]), '-mul', str(factor2), '-add', 'temp1', 'patchvols_' + zpad(spikearray[i])])
-            subprocess.call(['rm', 'temp1.nii.gz'])
+            print("replacing volume " + str(zpad(spikearray[i])),
+                  " with interpolation from " + str(zpad(lowersource[i])) + " to " + str(zpad(uppersource[i])))
+            subprocess.call(['fslmaths',
+                             'mcvols_' + zpad(lowersource[i]),
+                             '-mul', str(factor1),
+                             'temp1'])
+            subprocess.call(['fslmaths',
+                             'mcvols_' + zpad(uppersource[i]),
+                             '-mul', str(factor2),
+                             '-add',
+                             'temp1',
+                             'patchvols_' + zpad(spikearray[i])])
+            subprocess.call(['rm',
+                             'temp1.nii.gz'])
 
 patchvollist = glob.glob('patchvols_*.nii.gz')
 mcvollist = glob.glob('mcvols_*.nii.gz')
