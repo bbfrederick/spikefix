@@ -6,13 +6,50 @@
 #
 from __future__ import print_function
 import sys
-import re
-import os
 import time
 import subprocess
 import glob
+import argparse
  
 import re
+
+defaultpercentthresh = 3.0
+defaultnumvoxels = 150
+
+def _get_parser():
+    parser = argparse.ArgumentParser(prog='spikecheck',
+                                     description='Finds spikes in fmri data.',
+                                     usage='%(prog)s texfilename[:col1,col2...,coln] [textfilename]... [options]')
+
+    parser.add_argument('inputfile',
+                        type=str,
+                        help='The name of the 4D file to check for spikes')
+    parser.add_argument('outputroot',
+                        type=str,
+                        help='The base of all output filenames')
+
+    parser.add_argument('--percentthresh',
+                        dest='percentthresh',
+                        action='store',
+                        metavar='PCT',
+                        type=lambda x: is_float(parser, x),
+                        help=('The percentage difference of a timepoint from it's ',
+                              'mean to be flagged (default is' + str(defaultpercentthresh) + '). '
+                              'NOTE: if percentthresh ',
+                              'is negative, use its absolute value, but mask the image first.'),
+                        default=defaultpercentthresh)
+    parser.add_argument('--numvoxthresh',
+                        dest='numvoxthresh',
+                        action='store',
+                        metavar='NUM',
+                        type=lambda x: is_int(parser, x),
+                        help=('The number of voxels passing percentthresh at a timepoint ',
+                              'to constitute a  spike (default=150).'),
+                        default=150)
+
+    return parser
+
+
 def grep(pattern,linelist):
     r=[]
     linenumber=0
@@ -60,6 +97,17 @@ def getuppervalid(theindex,spikearray,upperlim):
 # read in the datafile
 numvoxthresh = 150
 percentthresh = 3.0
+
+def main():
+    try:
+        args = vars(_get_parser().parse_args())
+    except SystemExit:
+        _get_parser().print_help()
+        raise
+
+    if args['debug']:
+        print(args)
+
 
 if len(sys.argv) < 2 or len(sys.argv) > 4:
     print("usage: spikecheck inputfile outputroot [percentthresh [numvoxthresh]]")
@@ -164,3 +212,5 @@ rmcmd.extend(mcvollist)
 subprocess.call(rmcmd)
 
 
+if __name__ == "__main__":
+    main()
