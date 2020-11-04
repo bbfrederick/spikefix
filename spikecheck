@@ -1,54 +1,214 @@
-#!/bin/csh -f
+#!/usr/bin/env python
 #
 #       $Author: frederic $
-#       $Date: 2015/01/23 16:44:48 $
-#       $Id: spikecheck,v 1.7 2015/01/23 16:44:48 frederic Exp $
+#       $Date: 2016/09/22 15:33:04 $
+#       $Id: spikepatch,v 1.7 2016/09/22 15:33:04 frederic Exp $
 #
-set numvoxthresh=150
-set percentthresh=3.0
+from __future__ import print_function
+import sys
+import os
+import subprocess
+import glob
+import argparse
+ 
+import re
 
-set numargs=$#
+defaultpercentthresh = 3.0
+defaultnumvoxels = 150
 
-if($numargs == "0") then
-    echo "usage: spikecheck inputfile outputroot [percentthresh [numvoxthresh]]"
-    echo "	inputfile:	the name of the 4D file to check for spikes"
-    echo "	outputroot:	the base of all output filenames"
-    echo "	percentthresh:	the percentage difference of a timepoint from it's mean to be flagged (default 5.0)"
-    echo "		NOTE: if percentthresh is negative, use its absolute value, but mask the image first"
-    echo "	numvoxthresh:	the number of voxels passing percentthresh at a timepoint to constitute a  spike (default 200)"
-    exit()
-    endif
+def is_float(parser, arg):
+    """
+    Check if argument is float or auto.
+    """
+    if arg != "auto":
+        try:
+            arg = float(arg)
+        except parser.error:
+            parser.error('Value {0} is not a float or "auto"'.format(arg))
 
-if($numargs == "3") then
-    set percentthresh=$3
-    endif
+    return arg
 
-if($numargs == "4") then
-    set percentthresh=$3
-    set numvoxthresh=$4
-    endif
 
-set abspercentthresh=`echo $percentthresh | awk '{print 1.0*sqrt($1^2)}'`
-set sgnpercentthresh=`echo $abspercentthresh $percentthresh | awk '{print int($1/$2)}'`
+def is_int(parser, arg):
+    """
+    Check if argument is int or auto.
+    """
+    if arg != "auto":
+        try:
+            arg = int(arg)
+        except parser.error:
+            parser.error('Value {0} is not an int or "auto"'.format(arg))
 
-echo "using threshold percentage of "$abspercentthresh", voxel threshold "$numvoxthresh
-fslmaths $1 -Tmean $2'_immean' -odt float
-set thresh = `fslstats $2'_immean' -r | awk '{print $2/20.0}'`
-fslmaths $2'_immean' -thr $thresh -bin $2'_immask' -odt float
-set xsize = `fslhd $2'_immean' | grep dim1 | egrep -v pixdim | awk '{print $2}'`
-set ysize = `fslhd $2'_immean' | grep dim2 | egrep -v pixdim | awk '{print $2}'`
-set zsize = `fslhd $2'_immean' | grep dim3 | egrep -v pixdim | awk '{print $2}'`
-if($sgnpercentthresh == "1") then
-    echo 'not masking'
-    fslmaths $1 -div $2'_immean' -sub 1 -nan -abs \
-	-thr $abspercentthresh -bin -mul $xsize -mul $ysize -mul $zsize $2'_map' -odt int
-else
-    echo 'masking'
-    fslmaths $1 -div $2'_immean' -sub 1 -nan -abs -mul $2'_immask' \
-	-thr $abspercentthresh -bin -mul $xsize -mul $ysize -mul $zsize $2'_map' -odt int
-    endif
-fslmeants -i $2'_map' -o $2'_tc.txt'
-cat $2'_tc.txt' | awk '{ if($1>'$numvoxthresh') print NR-1}' > $2'_locs.txt'
-set numspikes = `cat $2'_locs.txt' | wc | awk '{print $1}'`
-cat $2'_tc.txt' | awk '{ if($1>'$numvoxthresh') print "1"; else print "0" }' > $2'_loctc.txt'
-echo $numspikes " spikes found"
+    return arg
+
+
+def _get_parser():
+    parser = argparse.ArgumentParser(prog='spikecheck',
+                                     description='Finds spikes in fmri data.',
+                                     usage='%(prog)s texfilename[:col1,col2...,coln] [textfilename]... [options]')
+
+    parser.add_argument('inputfilename',
+                        type=str,
+                        help='The name of the 4D file to check for spikes')
+    parser.add_argument('outputfileroot',
+                        type=str,
+                        help='The base of all output filenames')
+    parser.add_argument(
+        '--percentthresh',
+        dest='percentthresh',
+        action='store',
+        metavar='PCT',
+        type=lambda x: is_float(parser, x),
+        help=('The percentage difference of a timepoint from the '
+              'mean to be flagged (default is ' + str(defaultpercentthresh) + '). '
+              'NOTE: if percentthresh is negative, use its absolute value, but mask the image first.'),
+        default=defaultpercentthresh)
+    parser.add_argument(
+        '--numvoxthresh',
+        dest='numvoxthresh',
+        action='store',
+        metavar='NUM',
+        type=lambda x: is_int(parser, x),
+        help=(
+            'The number of voxels passing percentthresh at a timepoint '
+            'to constitute a  spike (default is ' + str(defaultnumvoxels) + ').'),
+        default=150)
+
+    return parser
+
+
+def grep(pattern,linelist):
+    r=[]
+    linenumber=0
+    for line in linelist:
+        linenumber +=1
+        if re.search(pattern,line):
+            r.append((linenumber,line))
+    return r
+
+
+def getniftihdritem(theniftifile, item, FSLBINDIR):
+    matchinglines = grep(item,
+                         subprocess.check_output([os.path.join(FSLBINDIR, 'fslhd'),
+                                                  theniftifile]).decode("latin-1").split('\n'))
+    for thisline in matchinglines:
+        splitline = thisline[1].split()
+        if splitline[0] == item:
+            return splitline[1]
+    return None
+
+
+# read in the datafile
+def main():
+    try:
+        args = _get_parser().parse_args()
+    except SystemExit:
+        _get_parser().print_help()
+        raise
+
+    # check for FSL
+    FSLDIR = os.environ.get('FSLDIR')
+    if FSLDIR is None:
+        print('cannot find FSL - quitting')
+        sys.exit()
+    else:
+        print('FSL found at', FSLDIR)
+    FSLBINDIR = os.path.join(FSLDIR, 'bin')
+
+
+    abspercentthresh = abs(args.percentthresh)
+    sgnpercentthresh = args.percentthresh / abspercentthresh
+
+    print("using threshold percentage of ", abspercentthresh, ", voxel threshold ", args.numvoxthresh)
+    subprocess.call([os.path.join(FSLBINDIR, 'fslmaths'),
+                     args.inputfilename,
+                     '-Tmean',
+                     'immean',
+                     '-odt',
+                     'float'])
+    statscmd = [os.path.join(FSLBINDIR, 'fslstats'),
+                'immean', '-r']
+    statscmdresult = subprocess.check_output(statscmd).decode("latin-1").split('\n')[0].split()[1]
+    thresh = float(statscmdresult) / 20.0
+    print('thresh:', thresh)
+    subprocess.call([os.path.join(FSLBINDIR, 'fslmaths'),
+                     'immean',
+                     '-thr', str(thresh),
+                     '-bin',
+                     'immask',
+                     '-odt', 'float'])
+
+    xsize = getniftihdritem('immean', 'dim1', FSLBINDIR)
+    ysize = getniftihdritem('immean', 'dim2', FSLBINDIR)
+    zsize = getniftihdritem('immean', 'dim3', FSLBINDIR)
+    print(xsize, ysize, zsize)
+
+    if sgnpercentthresh > 0:
+        print('not masking')
+        subprocess.call([
+            os.path.join(FSLBINDIR, 'fslmaths'),
+            args.inputfilename,
+            '-div', 'immean',
+            '-sub', '1',
+            '-nan',
+            '-abs',
+            '-thr', str(abspercentthresh),
+            '-bin',
+            '-mul', str(xsize),
+            '-mul', str(ysize),
+            '-mul', str(zsize),
+            args.outputfileroot + '_map',
+            '-odt', 'int'])
+    else:
+        print('masking')
+        subprocess.call([
+            os.path.join(FSLBINDIR, 'fslmaths'),
+            args.inputfilename,
+            '-div', 'immean',
+            '-sub', '1',
+            '-nan',
+            '-abs',
+            '-mul', 'immask',
+            '-thr', str(abspercentthresh),
+            '-bin',
+            '-mul', str(xsize),
+            '-mul', str(ysize),
+            '-mul', str(zsize),
+            args.outputfileroot + '_map',
+            '-odt', 'int'])
+
+    subprocess.call([
+        os.path.join(FSLBINDIR, 'fslmeants'),
+        '-i',
+        args.outputfileroot + '_map',
+        '-o',
+        args.outputfileroot + '_tc.txt'])
+
+    with open(args.outputfileroot + '_tc.txt', 'r') as infile:
+        read_data = infile.read().split('\n')
+
+    numlines = len(read_data) - 1
+
+    outlist = []
+    loctclist = []
+    for idx in range(numlines):
+        print(idx, read_data[idx])
+        if int(read_data[idx]) > args.numvoxthresh:
+            outlist.append(str(idx) + '\n')
+            print('threshhold exceeded')
+            loctclist.append('1\n')
+        else:
+            loctclist.append('0\n')
+
+    with open(args.outputfileroot + '_locs.txt', 'w') as outfile:
+        outfile.writelines(outlist)
+    with open(args.outputfileroot + '_loctc.txt', 'w') as outfile:
+        outfile.writelines(loctclist)
+
+    rmcmd = ['rm', 'immask.nii.gz', 'immean.nii.gz']
+    subprocess.call(rmcmd)
+
+    print(len(outlist), 'spikes found')
+
+if __name__ == "__main__":
+    main()
