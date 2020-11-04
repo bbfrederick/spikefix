@@ -6,7 +6,7 @@
 #
 from __future__ import print_function
 import sys
-import time
+import os
 import subprocess
 import glob
 import argparse
@@ -59,12 +59,9 @@ def _get_parser():
         action='store',
         metavar='PCT',
         type=lambda x: is_float(parser, x),
-        help=(
-            'The percentage difference of a timepoint from it\'s ',
-            'mean to be flagged (default is' + str(defaultpercentthresh) + '). '
-            'NOTE: if percentthresh '
-            'is negative, use its absolute value, but mask the image first.'
-            ),
+        help=('The percentage difference of a timepoint from the '
+              'mean to be flagged (default is ' + str(defaultpercentthresh) + '). '
+              'NOTE: if percentthresh is negative, use its absolute value, but mask the image first.'),
         default=defaultpercentthresh)
     parser.add_argument(
         '--numvoxthresh',
@@ -74,7 +71,7 @@ def _get_parser():
         type=lambda x: is_int(parser, x),
         help=(
             'The number of voxels passing percentthresh at a timepoint '
-            'to constitute a  spike (default=150).'),
+            'to constitute a  spike (default is ' + str(defaultnumvoxels) + ').'),
         default=150)
 
     return parser
@@ -186,10 +183,29 @@ def main():
         args.outputfileroot + '_map',
         '-o',
         args.outputfileroot + '_tc.txt'])
-    '''cat $2'_tc.txt' | awk '{ if($1>'$numvoxthresh') print NR-1}' > $2'_locs.txt'
-    set numspikes = `cat $2'_locs.txt' | wc | awk '{print $1}'`
-    cat $2'_tc.txt' | awk '{ if($1>'$numvoxthresh') print "1"; else print "0" }' > $2'_loctc.txt'
-    echo $numspikes " spikes found"'''
+
+    with open(args.outputfileroot + '_tc.txt', 'r') as infile:
+        read_data = infile.read().split('\n')
+
+    numlines = len(read_data) - 1
+
+    outlist = []
+    loctclist = []
+    for idx in range(numlines):
+        print(idx, read_data[idx])
+        if int(read_data[idx]) > args.numvoxthresh:
+            outlist.append(str(idx))
+            print('threshhold exceeded')
+            loctclist.append('1')
+        else:
+            loctclist.append('0')
+
+    with open(args.outputfileroot + '_locs.txt', 'w') as outfile:
+        outfile.writelines(outlist)
+    with open(args.outputfileroot + '_loctc.txt', 'w') as outfile:
+        outfile.writelines(loctclist)
+
+    print(len(outlist), 'spikes found')
 
 if __name__ == "__main__":
     main()
