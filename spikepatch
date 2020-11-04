@@ -24,7 +24,7 @@ def grep(pattern, linelist):
 
 def getniftihdritem(item):
     matchinglines = grep(item, subprocess.check_output(['fslhd',
-                                                        inputfilename]).decode("utf-8").split('\n'))
+                                                        inputfilename]).decode("latin-1").split('\n'))
     for thisline in matchinglines:
         splitline = thisline[1].split()
         if splitline[0] == item:
