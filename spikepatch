@@ -160,9 +160,11 @@ def main():
 
     subprocess.call([os.path.join(FSLBINDIR, 'fslsplit'), args.inputfilename, 'patchvols_', '-t'])
     if args.motioncorrect:
+        print('performing motion correction')
         subprocess.call([os.path.join(FSLBINDIR, 'mcflirt'), '-in', args.inputfilename])
         subprocess.call([os.path.join(FSLBINDIR, 'fslsplit'), args.inputfilename + '_mcf', 'mcvols_', '-t'])
     else:
+        print('skipping motion correction')
         subprocess.call([os.path.join(FSLBINDIR, 'fslsplit'), args.inputfilename, 'mcvols_', '-t'])
     for i in range(0, numspikes):
         if lowersource[i] == -1:
