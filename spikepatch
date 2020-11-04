@@ -5,11 +5,59 @@
 #       $Id: spikepatch,v 1.7 2016/09/22 15:33:04 frederic Exp $
 #
 from __future__ import print_function
-import sys
 import subprocess
 import glob
+import argparse
 
 import re
+
+
+def is_float(parser, arg):
+    """
+    Check if argument is float or auto.
+    """
+    if arg != "auto":
+        try:
+            arg = float(arg)
+        except parser.error:
+            parser.error('Value {0} is not a float or "auto"'.format(arg))
+
+    return arg
+
+
+def is_int(parser, arg):
+    """
+    Check if argument is int or auto.
+    """
+    if arg != "auto":
+        try:
+            arg = int(arg)
+        except parser.error:
+            parser.error('Value {0} is not an int or "auto"'.format(arg))
+
+    return arg
+
+
+def _get_parser():
+    parser = argparse.ArgumentParser(prog='spikepatch',
+                                     description='Fixes spikes in fmri data.',
+                                     usage='%(prog)s inputfile outputfile spikelocs')
+
+    parser.add_argument(
+        'inputfilename',
+        type=str,
+        help='The name of the raw 4D data file')
+    parser.add_argument(
+        'outputfilename',
+        type=str,
+        help='The name of the despiked output file')
+    parser.add_argument(
+        'spikefilename',
+        type=str,
+        help=('Text file listing the indices of the bad points (first point is 0), '
+              'e.g. the XXX_locs.txt output of spikecheck'))
+
+    return parser
 
 
 def grep(pattern, linelist):
@@ -22,19 +70,14 @@ def grep(pattern, linelist):
     return r
 
 
-def getniftihdritem(item):
-    matchinglines = grep(item, subprocess.check_output(['fslhd',
-                                                        inputfilename]).decode("latin-1").split('\n'))
+def getniftihdritem(theniftifile, item):
+    matchinglines = grep(item,
+                         subprocess.check_output(['fslhd', theniftifile]).decode("latin-1").split('\n'))
     for thisline in matchinglines:
         splitline = thisline[1].split()
         if splitline[0] == item:
             return splitline[1]
     return None
-
-
-def zpad(thenum):
-    tempstring = "000" + str(thenum)
-    return tempstring[-4:]
 
 
 def getlowervalid(theindex, thespikearray):
@@ -51,7 +94,7 @@ def getlowervalid(theindex, thespikearray):
 
 def getuppervalid(theindex, thespikearray, theupperlim):
     if theindex == len(thespikearray) - 1:
-        if thespikearray[theindex] == upperlim:
+        if thespikearray[theindex] == theupperlim:
             return -1
         else:
             return thespikearray[theindex] + 1
@@ -61,88 +104,92 @@ def getuppervalid(theindex, thespikearray, theupperlim):
         return thespikearray[theindex] + 1
 
 
-# read in the datafile
-if len(sys.argv) != 4:
-    print("usage: spikepatch inputdata outputdata spikelocs")
-    print("    inputdata:       the name of the raw 4D data file")
-    print("    outputdata:      the name of the despiked output file")
-    print("    spikelocs:       text file listing the indices of the bad points (first point is 0), ")
-    print("                        e.g. the XXX_locs.txt output of spikecheck")
-    exit()
-inputfilename = sys.argv[1]
-outputfilename = sys.argv[2]
-spikefilename = sys.argv[3]
-limret = int(getniftihdritem('dim4'))
-print('spike patching file with ', limret, ' volumes')
-upperlim = int(limret) - 1
+def main():
+    try:
+        args = _get_parser().parse_args()
+    except SystemExit:
+        _get_parser().print_help()
+        raise
 
-spikearray = []
-uppersource = []
-lowersource = []
-spikefile = open(spikefilename)
-for line in spikefile:
-    spikearray.append(int(line))
-    uppersource.append(int(0))
-    lowersource.append(int(0))
-numspikes = len(spikearray)
+    limret = int(getniftihdritem(args.inputfilename, 'dim4'))
+    print('spike patching file with ', limret, ' volumes')
+    upperlim = int(limret) - 1
 
-for i in range(0, numspikes):
-    lowersource[i] = getlowervalid(i, spikearray)
-    uppersource[i] = getuppervalid(i, spikearray, upperlim)
-    print("spike: ", i, ", loc=", spikearray[i], ", sources=", lowersource[i], ",", uppersource[i])
+    spikearray = []
+    uppersource = []
+    lowersource = []
+    spikefile = open(args.spikefilename)
+    for line in spikefile:
+        spikearray.append(int(line))
+        uppersource.append(int(0))
+        lowersource.append(int(0))
+    numspikes = len(spikearray)
 
-subprocess.call(['mcflirt', '-in', inputfilename])
-subprocess.call(['fslsplit', inputfilename, 'patchvols_', '-t'])
-subprocess.call(['fslsplit', inputfilename + '_mcf', 'mcvols_', '-t'])
-for i in range(0, numspikes):
-    if lowersource[i] == -1:
-        # extrapolate to beginning
-        print("replacing volume " + str(zpad(spikearray[i])),
-              " with " + str(zpad(uppersource[i])) + " (extrapolate to beginning)")
-        subprocess.call(
-            ['cp',
-             'mcvols_' + zpad(uppersource[i]) + '.nii.gz',
-             'patchvols_' + zpad(spikearray[i]) + '.nii.gz'])
-    else:
-        if uppersource[i] == -1:
-            # extrapolate to end
-            print("replacing volume " + str(zpad(spikearray[i])),
-                  " with " + str(zpad(lowersource[i])) + " (extrapolate to end)")
+    for i in range(0, numspikes):
+        lowersource[i] = getlowervalid(i, spikearray)
+        uppersource[i] = getuppervalid(i, spikearray, upperlim)
+        print("spike: ", i, ", loc=", spikearray[i], ", sources=", lowersource[i], ",", uppersource[i])
+
+    print('calling mcflirt')
+    subprocess.call(['mcflirt', '-in', args.inputfilename])
+    print('generating patchvols')
+    subprocess.call(['fslsplit', args.inputfilename, 'patchvols_', '-t'])
+    print('generating mcvols')
+    subprocess.call(['fslsplit', args.inputfilename + '_mcf', 'mcvols_', '-t'])
+    for i in range(0, numspikes):
+        if lowersource[i] == -1:
+            # extrapolate to beginning
+            print("replacing volume " + str(spikearray[i]).zfill(4),
+                  " with " + str(uppersource[i]).zfill(4) + " (extrapolate to beginning)")
             subprocess.call(
                 ['cp',
-                 'mcvols_' + zpad(lowersource[i]) + '.nii.gz',
-                 'patchvols_' + zpad(spikearray[i]) + '.nii.gz'])
+                 'mcvols_' + str(uppersource[i]).zfill(4) + '.nii.gz',
+                 'patchvols_' + str(spikearray[i]).zfill(4) + '.nii.gz'])
         else:
-            # interpolate between endpoints
-            therange = uppersource[i] - lowersource[i]
-            distance1 = spikearray[i] - lowersource[i]
-            factor1 = (1.0 * distance1) / therange
-            factor2 = 1.0 - factor1
-            print(therange, distance1, factor1, factor2)
-            print("replacing volume " + str(zpad(spikearray[i])),
-                  " with interpolation from " + str(zpad(lowersource[i])) + " to " + str(zpad(uppersource[i])))
-            subprocess.call(['fslmaths',
-                             'mcvols_' + zpad(lowersource[i]),
-                             '-mul', str(factor1),
-                             'temp1'])
-            subprocess.call(['fslmaths',
-                             'mcvols_' + zpad(uppersource[i]),
-                             '-mul', str(factor2),
-                             '-add',
-                             'temp1',
-                             'patchvols_' + zpad(spikearray[i])])
-            subprocess.call(['rm',
-                             'temp1.nii.gz'])
+            if uppersource[i] == -1:
+                # extrapolate to end
+                print("replacing volume " + str(spikearray[i]).zfill(4),
+                      " with " + str(lowersource[i]).zfill(4) + " (extrapolate to end)")
+                subprocess.call(
+                    ['cp',
+                     'mcvols_' + str(lowersource[i]).zfill(4) + '.nii.gz',
+                     'patchvols_' + str(spikearray[i]).zfill(4) + '.nii.gz'])
+            else:
+                # interpolate between endpoints
+                therange = uppersource[i] - lowersource[i]
+                distance1 = spikearray[i] - lowersource[i]
+                factor1 = (1.0 * distance1) / therange
+                factor2 = 1.0 - factor1
+                print(therange, distance1, factor1, factor2)
+                print("replacing volume " + str(spikearray[i]).zfill(4),
+                      " with interpolation from " + str(lowersource[i]).zfill(4),
+                      " to " + str(uppersource[i]).zfill(4))
+                subprocess.call(['fslmaths',
+                                 'mcvols_' + str(lowersource[i]).zfill(4),
+                                 '-mul', str(factor1),
+                                 'temp1'])
+                subprocess.call(['fslmaths',
+                                 'mcvols_' + str(uppersource[i]).zfill(4),
+                                 '-mul', str(factor2),
+                                 '-add',
+                                 'temp1',
+                                 'patchvols_' + str(spikearray[i]).zfill(4)])
+                subprocess.call(['rm',
+                                 'temp1.nii.gz'])
 
-patchvollist = glob.glob('patchvols_*.nii.gz')
-mcvollist = glob.glob('mcvols_*.nii.gz')
+    patchvollist = glob.glob('patchvols_*.nii.gz')
+    mcvollist = glob.glob('mcvols_*.nii.gz')
 
-mergecommand = ['fslmerge', '-t', outputfilename]
-mergecommand.extend(patchvollist)
-subprocess.call(mergecommand)
+    mergecommand = ['fslmerge', '-t', args.outputfilename]
+    mergecommand.extend(patchvollist)
+    subprocess.call(mergecommand)
 
-rmcmd = ['rm', inputfilename + '_mcf.nii.gz']
-rmcmd.extend(patchvollist)
-rmcmd.extend(mcvollist)
+    rmcmd = ['rm', args.inputfilename + '_mcf.nii.gz']
+    rmcmd.extend(patchvollist)
+    rmcmd.extend(mcvollist)
 
-subprocess.call(rmcmd)
+    #subprocess.call(rmcmd)
+
+
+if __name__ == "__main__":
+    main()
