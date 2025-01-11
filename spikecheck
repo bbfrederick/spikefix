@@ -9,6 +9,7 @@ from __future__ import print_function
 import argparse
 import os
 import re
+import statistics
 import subprocess
 import sys
 
@@ -109,13 +110,13 @@ def _get_parser():
         help=("Estimate the percentage threshold."),
         default=False,
     )
-    """parser.add_argument(
+    parser.add_argument(
         "--estimatenumvoxthresh",
         dest="estimatenumvoxthresh",
         action="store_true",
         help=("Estimate the number of voxels threshold."),
         default=False,
-    )"""
+    )
     parser.add_argument(
         "--nomask",
         dest="usemask",
@@ -314,7 +315,6 @@ def main():
             subprocess.call(rmcmd)
 
     abspercentthresh = abs(args.percentthresh)
-    sgnpercentthresh = args.percentthresh / abspercentthresh
 
     print(
         "using threshold percentage of ",
@@ -392,14 +392,29 @@ def main():
 
     numlines = len(read_data) - 1
 
+    # make a numerical list
+    multiplier = float(xsize * ysize * zsize)
+    numvox_tc = []
+    for idx in range(numlines):
+        thisval = int(float(read_data[idx].strip()) * multiplier)
+        numvox_tc.append(thisval)
+
+    if args.estimatenumvoxthresh:
+        themedian = statistics.median(numvox_tc)
+        demedianed = []
+        for idx in range(numlines):
+            demedianed.append(abs(numvox_tc[idx] - themedian))
+        voxMAD = statistics.mean(demedianed)
+        estimatedvoxthresh = 3.0 * 1.4826 * voxMAD
+        args.numvoxthresh = int(estimatedvoxthresh + 0.5)
+        print("numvoxthresh set to ", args.numvoxthresh)
+
     outlist = []
     loctclist = []
-    multiplier = float(xsize * ysize * zsize)
     newtc_data = []
     print("multiplier:", multiplier)
     for idx in range(numlines):
-        read_data[idx] = int(float(read_data[idx].strip()) * multiplier)
-        newtc_data.append(str(read_data[idx]) + "\n")
+        newtc_data.append(str(numvox_tc[idx]) + "\n")
         print(idx, read_data[idx])
         if read_data[idx] > args.numvoxthresh:
             outlist.append(str(idx) + "\n")
