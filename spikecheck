@@ -400,13 +400,13 @@ def main():
 
     if args.estimatenumvoxthresh:
         themedian = statistics.median(numvox_tc)
-        if debug:
+        if args.debug:
             print("themedian", themedian)
         demedianed = []
         for idx in range(numlines):
             absdemedianed.append(abs(numvox_tc[idx] - themedian))
         voxMAD = statistics.mean(absdemedianed)
-        if debug:
+        if args.debug:
             print("voxMAD", voxMAD)
         estimatedvoxthresh = 3.0 * 1.4826 * voxMAD
         args.numvoxthresh = int(estimatedvoxthresh + 0.5)
