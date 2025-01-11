@@ -399,7 +399,7 @@ def main():
     print("multiplier:", multiplier)
     for idx in range(numlines):
         read_data[idx] = int(float(read_data[idx].strip()) * multiplier)
-        newtc_data.append(str(read_data[idx]))
+        newtc_data.append(str(read_data[idx]) + "\n")
         print(idx, read_data[idx])
         if read_data[idx] > args.numvoxthresh:
             outlist.append(str(idx) + "\n")
