@@ -371,12 +371,6 @@ def main():
             "-thr",
             str(abspercentthresh),
             "-bin",
-            "-mul",
-            str(xsize),
-            "-mul",
-            str(ysize),
-            "-mul",
-            str(zsize),
             args.outputfileroot + "_map",
             "-odt",
             "int",
@@ -401,6 +395,7 @@ def main():
     outlist = []
     loctclist = []
     for idx in range(numlines):
+        read_data[idx] = int(xsize * ysize * zsize * read_data[i])
         print(idx, read_data[idx])
         if int(read_data[idx]) > args.numvoxthresh:
             outlist.append(str(idx) + "\n")
@@ -409,6 +404,8 @@ def main():
         else:
             loctclist.append("0\n")
 
+    with open(args.outputfileroot + "_tc.txt", "w") as outfile:
+        outfile.writelines(read_data)
     with open(args.outputfileroot + "_locs.txt", "w") as outfile:
         outfile.writelines(outlist)
     with open(args.outputfileroot + "_loctc.txt", "w") as outfile:
