@@ -1,2 +1,4 @@
 # exclude pycharm project directory
 .idea
+
+.DS_Store

@@ -5,13 +5,13 @@
 #       $Id: spikepatch,v 1.7 2016/09/22 15:33:04 frederic Exp $
 #
 from __future__ import print_function
-import subprocess
-import glob
-import argparse
-import os
-import sys
 
+import argparse
+import glob
+import os
 import re
+import subprocess
+import sys
 
 
 def is_float(parser, arg):
@@ -41,30 +41,42 @@ def is_int(parser, arg):
 
 
 def _get_parser():
-    parser = argparse.ArgumentParser(prog='spikepatch',
-                                     description='Fixes spikes in fmri data.',
-                                     )
+    parser = argparse.ArgumentParser(
+        prog="spikepatch",
+        description="Fixes spikes in fmri data.",
+    )
 
     parser.add_argument(
-        'inputfilename',
-        type=str,
-        help='The name of the raw 4D data file')
+        "inputfilename", type=str, help="The name of the raw 4D data file"
+    )
     parser.add_argument(
-        'outputfilename',
-        type=str,
-        help='The name of the despiked output file')
+        "outputfilename", type=str, help="The name of the despiked output file"
+    )
     parser.add_argument(
-        'spikefilename',
+        "spikefilename",
         type=str,
-        help=('Text file listing the indices of the bad points (first point is 0), '
-              'e.g. the XXX_locs.txt output of spikecheck'))
+        help=(
+            "Text file listing the indices of the bad points (first point is 0), "
+            "e.g. the XXX_locs.txt output of spikecheck"
+        ),
+    )
     parser.add_argument(
-        '--nomotioncorrect',
-        dest='motioncorrect',
-        action='store_false',
-        help=('Do not run mcflirt prior to interpolation.  Use this flag if you suspect motion '
-              'correction will not work properly on your dataset.'),
-        default=True)
+        "--nomotioncorrect",
+        dest="motioncorrect",
+        action="store_false",
+        help=(
+            "Do not run mcflirt prior to interpolation.  Use this flag if you suspect motion "
+            "correction will not work properly on your dataset."
+        ),
+        default=True,
+    )
+    parser.add_argument(
+        "--debug",
+        dest="debug",
+        action="store_true",
+        help=("Print more extensive debugging information."),
+        default=False,
+    )
 
     return parser
 
@@ -80,9 +92,12 @@ def grep(pattern, linelist):
 
 
 def getniftihdritem(theniftifile, item, FSLBINDIR):
-    matchinglines = grep(item,
-                         subprocess.check_output([os.path.join(FSLBINDIR, 'fslhd'),
-                                                  theniftifile]).decode("latin-1").split('\n'))
+    matchinglines = grep(
+        item,
+        subprocess.check_output([os.path.join(FSLBINDIR, "fslhd"), theniftifile])
+        .decode("latin-1")
+        .split("\n"),
+    )
     for thisline in matchinglines:
         splitline = thisline[1].split()
         if splitline[0] == item:
@@ -122,24 +137,31 @@ def main():
         raise
 
     # check for FSL
-    FSLDIR = os.environ.get('FSLDIR')
+    FSLDIR = os.environ.get("FSLDIR")
     if FSLDIR is None:
-        print('cannot find FSL - quitting')
+        print("cannot find FSL - quitting")
         sys.exit()
     else:
-        print('FSL found at', FSLDIR)
-    FSLBINDIR = os.path.join(FSLDIR, 'bin')
+        print("FSL found at", FSLDIR)
+    FSLBINDIR = os.path.join(FSLDIR, "bin")
+
+    # confirm that the input file exists, and find its directory
+    if os.path.exists(args.inputfilename):
+        thepath, thefile = os.path.split(args.inputfilename)
+    else:
+        print("input file ", args.inputfilename, " does not exist - exiting")
+        sys.exit()
 
     # strip extension off input file if present
-    if args.inputfilename[-7:] == '.nii.gz':
+    if args.inputfilename[-7:] == ".nii.gz":
         args.inputfilename = args.inputfilename[:-7]
-    elif args.inputfilename[-3:] == '.gz':
+    elif args.inputfilename[-3:] == ".gz":
         args.inputfilename = args.inputfilename[:-3]
-    elif args.inputfilename[-4:] == '.nii':
+    elif args.inputfilename[-4:] == ".nii":
         args.inputfilename = args.inputfilename[:-4]
 
-    limret = int(getniftihdritem(args.inputfilename, 'dim4', FSLBINDIR))
-    print('spike patching file with ', limret, ' volumes')
+    limret = int(getniftihdritem(args.inputfilename, "dim4", FSLBINDIR))
+    print("spike patching file with ", limret, " volumes")
     upperlim = int(limret) - 1
 
     spikearray = []
@@ -155,35 +177,69 @@ def main():
     for i in range(0, numspikes):
         lowersource[i] = getlowervalid(i, spikearray)
         uppersource[i] = getuppervalid(i, spikearray, upperlim)
-        #print("spike: {0}, loc = {1}", i, ", loc=", spikearray[i], ", sources=", lowersource[i], ",", uppersource[i])
-        print("spike {0}: loc = {1}, sources = {2}, {3}".format(i, spikearray[i], lowersource[i], uppersource[i]))
+        # print("spike: {0}, loc = {1}", i, ", loc=", spikearray[i], ", sources=", lowersource[i], ",", uppersource[i])
+        print(
+            "spike {0}: loc = {1}, sources = {2}, {3}".format(
+                i, spikearray[i], lowersource[i], uppersource[i]
+            )
+        )
 
-    subprocess.call([os.path.join(FSLBINDIR, 'fslsplit'), args.inputfilename, 'patchvols_', '-t'])
+    subprocess.call(
+        [os.path.join(FSLBINDIR, "fslsplit"), args.inputfilename, "patchvols_", "-t"]
+    )
     if args.motioncorrect:
-        print('performing motion correction')
-        subprocess.call([os.path.join(FSLBINDIR, 'mcflirt'), '-in', args.inputfilename])
-        subprocess.call([os.path.join(FSLBINDIR, 'fslsplit'), args.inputfilename + '_mcf', 'mcvols_', '-t'])
+        print("performing motion correction")
+        subprocess.call([os.path.join(FSLBINDIR, "mcflirt"), "-in", args.inputfilename])
+        subprocess.call(
+            [
+                os.path.join(FSLBINDIR, "fslsplit"),
+                args.inputfilename + "_mcf",
+                "mcvols_",
+                "-t",
+            ]
+        )
     else:
-        print('skipping motion correction')
-        subprocess.call([os.path.join(FSLBINDIR, 'fslsplit'), args.inputfilename, 'mcvols_', '-t'])
+        print("skipping motion correction")
+        subprocess.call(
+            [os.path.join(FSLBINDIR, "fslsplit"), args.inputfilename, "mcvols_", "-t"]
+        )
+    if args.debug:
+        print("individual timepoint filenames follow:")
+        thefilelist = glob.glob("mcvols_*.nii.gz")
+        if len(thefilelist) == 0:
+            print("individual frame files not present - exiting")
+            sys.exit()
+        for thefilename in thefilelist:
+            print("\t", thefilename)
+
     for i in range(0, numspikes):
         if lowersource[i] == -1:
             # extrapolate to beginning
-            print("replacing volume " + str(spikearray[i]).zfill(4),
-                  " with " + str(uppersource[i]).zfill(4) + " (extrapolate to beginning)")
+            print(
+                "replacing volume " + str(spikearray[i]).zfill(4),
+                " with " + str(uppersource[i]).zfill(4) + " (extrapolate to beginning)",
+            )
             subprocess.call(
-                ['cp',
-                 'mcvols_' + str(uppersource[i]).zfill(4) + '.nii.gz',
-                 'patchvols_' + str(spikearray[i]).zfill(4) + '.nii.gz'])
+                [
+                    "cp",
+                    "mcvols_" + str(uppersource[i]).zfill(4) + ".nii.gz",
+                    "patchvols_" + str(spikearray[i]).zfill(4) + ".nii.gz",
+                ]
+            )
         else:
             if uppersource[i] == -1:
                 # extrapolate to end
-                print("replacing volume " + str(spikearray[i]).zfill(4),
-                      " with " + str(lowersource[i]).zfill(4) + " (extrapolate to end)")
+                print(
+                    "replacing volume " + str(spikearray[i]).zfill(4),
+                    " with " + str(lowersource[i]).zfill(4) + " (extrapolate to end)",
+                )
                 subprocess.call(
-                    ['cp',
-                     'mcvols_' + str(lowersource[i]).zfill(4) + '.nii.gz',
-                     'patchvols_' + str(spikearray[i]).zfill(4) + '.nii.gz'])
+                    [
+                        "cp",
+                        "mcvols_" + str(lowersource[i]).zfill(4) + ".nii.gz",
+                        "patchvols_" + str(spikearray[i]).zfill(4) + ".nii.gz",
+                    ]
+                )
             else:
                 # interpolate between endpoints
                 therange = uppersource[i] - lowersource[i]
@@ -191,31 +247,41 @@ def main():
                 factor1 = (1.0 * distance1) / therange
                 factor2 = 1.0 - factor1
                 print(therange, distance1, factor1, factor2)
-                print("replacing volume " + str(spikearray[i]).zfill(4),
-                      " with interpolation from " + str(lowersource[i]).zfill(4),
-                      " to " + str(uppersource[i]).zfill(4))
-                subprocess.call([os.path.join(FSLBINDIR, 'fslmaths'),
-                                 'mcvols_' + str(lowersource[i]).zfill(4),
-                                 '-mul', str(factor1),
-                                 'temp1'])
-                subprocess.call([os.path.join(FSLBINDIR, 'fslmaths'),
-                                 'mcvols_' + str(uppersource[i]).zfill(4),
-                                 '-mul', str(factor2),
-                                 '-add',
-                                 'temp1',
-                                 'patchvols_' + str(spikearray[i]).zfill(4)])
-                subprocess.call(['rm',
-                                 'temp1.nii.gz'])
+                print(
+                    "replacing volume " + str(spikearray[i]).zfill(4),
+                    " with interpolation from " + str(lowersource[i]).zfill(4),
+                    " to " + str(uppersource[i]).zfill(4),
+                )
+                subprocess.call(
+                    [
+                        os.path.join(FSLBINDIR, "fslmaths"),
+                        "mcvols_" + str(lowersource[i]).zfill(4),
+                        "-mul",
+                        str(factor1),
+                        "temp1",
+                    ]
+                )
+                subprocess.call(
+                    [
+                        os.path.join(FSLBINDIR, "fslmaths"),
+                        "mcvols_" + str(uppersource[i]).zfill(4),
+                        "-mul",
+                        str(factor2),
+                        "-add",
+                        "temp1",
+                        "patchvols_" + str(spikearray[i]).zfill(4),
+                    ]
+                )
+                subprocess.call(["rm", "temp1.nii.gz"])
 
-    patchvollist = sorted(glob.glob('patchvols_*.nii.gz'))
-    mcvollist = glob.glob('mcvols_*.nii.gz')
+    patchvollist = sorted(glob.glob("patchvols_*.nii.gz"))
+    mcvollist = glob.glob("mcvols_*.nii.gz")
 
-    mergecommand = [os.path.join(FSLBINDIR, 'fslmerge'), '-t',
-                    args.outputfilename]
+    mergecommand = [os.path.join(FSLBINDIR, "fslmerge"), "-t", args.outputfilename]
     mergecommand.extend(patchvollist)
     subprocess.call(mergecommand)
 
-    rmcmd = ['rm', args.inputfilename + '_mcf.nii.gz']
+    rmcmd = ["rm", args.inputfilename + "_mcf.nii.gz"]
     rmcmd.extend(patchvollist)
     rmcmd.extend(mcvollist)
 
