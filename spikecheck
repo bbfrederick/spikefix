@@ -408,7 +408,7 @@ def main():
         voxMAD = statistics.mean(absdemedianed)
         if args.debug:
             print("voxMAD", voxMAD)
-        estimatedvoxthresh = 3.0 * 1.4826 * voxMAD
+        estimatedvoxthresh = 3.0 * 1.4826 * voxMAD + themedian
         args.numvoxthresh = int(estimatedvoxthresh + 0.5)
         print("numvoxthresh set to ", args.numvoxthresh)
 
@@ -417,7 +417,7 @@ def main():
     newtc_data = []
     for idx in range(numlines):
         newtc_data.append(str(numvox_tc[idx]) + "\n")
-        print(idx, read_data[idx])
+        print(idx, numvox_tc[idx])
         if numvox_tc[idx] > args.numvoxthresh:
             outlist.append(str(idx) + "\n")
             print("threshhold exceeded")
