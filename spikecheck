@@ -397,8 +397,7 @@ def main():
     multiplier = float(xsize * ysize * zsize)
     print("multiplier:", multiplier)
     for idx in range(numlines):
-        read_data[idx] = float(read_data[idx].strip())
-        print(idx, read_data[idx], read_data[idx] * multiplier)
+        read_data[idx] = str(float(read_data[idx].strip()) * multiplier)
         print(idx, read_data[idx])
         if int(read_data[idx]) > args.numvoxthresh:
             outlist.append(str(idx) + "\n")
