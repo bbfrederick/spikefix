@@ -109,6 +109,13 @@ def _get_parser():
         help=("Estimate the percentage threshold."),
         default=False,
     )
+    """parser.add_argument(
+        "--estimatenumvoxthresh",
+        dest="estimatenumvoxthresh",
+        action="store_true",
+        help=("Estimate the number of voxels threshold."),
+        default=False,
+    )"""
     parser.add_argument(
         "--nomask",
         dest="usemask",
@@ -303,7 +310,7 @@ def main():
     zsize = getniftihdritem("immean", "dim3", FSLBINDIR)
     print(xsize, ysize, zsize)
 
-    if sgnpercentthresh > 0:
+    if not args.usemask:
         print("not masking")
         subprocess.call(
             [
