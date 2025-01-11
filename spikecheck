@@ -152,8 +152,16 @@ def main():
                 "-sub",
                 "1.0",
                 "-nan",
+                "imnorm" "-odt",
+                "float",
+            ]
+        )
+        subprocess.call(
+            [
+                os.path.join(FSLBINDIR, "fslmaths"),
+                "imnorm",
                 "-Tmedian",
-                "imnormmedian",
+                "immedianovertime",
                 "-odt",
                 "float",
             ]
@@ -161,11 +169,18 @@ def main():
         subprocess.call(
             [
                 os.path.join(FSLBINDIR, "fslmaths"),
-                args.inputfilename,
-                "-div",
-                "immean",
+                "imnorm",
                 "-sub",
-                "imnormmedian",
+                "immedianovertime",
+                "imdiff",
+                "-odt",
+                "float",
+            ]
+        )
+        subprocess.call(
+            [
+                os.path.join(FSLBINDIR, "fslmaths"),
+                "imdiff",
                 "-abs",
                 "-Tmedian",
                 "imMAD",
