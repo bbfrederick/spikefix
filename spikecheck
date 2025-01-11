@@ -395,11 +395,13 @@ def main():
     outlist = []
     loctclist = []
     multiplier = float(xsize * ysize * zsize)
+    newtc_data = []
     print("multiplier:", multiplier)
     for idx in range(numlines):
-        read_data[idx] = str(float(read_data[idx].strip()) * multiplier)
+        read_data[idx] = int(float(read_data[idx].strip()) * multiplier)
+        newtc_data.append(str(read_data[idx]))
         print(idx, read_data[idx])
-        if int(read_data[idx]) > args.numvoxthresh:
+        if read_data[idx] > args.numvoxthresh:
             outlist.append(str(idx) + "\n")
             print("threshhold exceeded")
             loctclist.append("1\n")
@@ -407,7 +409,7 @@ def main():
             loctclist.append("0\n")
 
     with open(args.outputfileroot + "_newtc.txt", "w") as outfile:
-        outfile.writelines(read_data)
+        outfile.writelines(newtc_data)
     with open(args.outputfileroot + "_locs.txt", "w") as outfile:
         outfile.writelines(outlist)
     with open(args.outputfileroot + "_loctc.txt", "w") as outfile:
