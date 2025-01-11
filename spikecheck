@@ -394,10 +394,11 @@ def main():
 
     outlist = []
     loctclist = []
-    multiplier = xsize * ysize * zsize
+    multiplier = float(xsize * ysize * zsize)
     print("multiplier:", multiplier)
     for idx in range(numlines):
-        read_data[idx] = float(read_data[idx].strip()) * multiplier
+        read_data[idx] = float(read_data[idx].strip())
+        print(idx, read_data[idx], read_data[idx] * multiplier)
         print(idx, read_data[idx])
         if int(read_data[idx]) > args.numvoxthresh:
             outlist.append(str(idx) + "\n")
@@ -406,7 +407,7 @@ def main():
         else:
             loctclist.append("0\n")
 
-    with open(args.outputfileroot + "_tc.txt", "w") as outfile:
+    with open(args.outputfileroot + "_newtc.txt", "w") as outfile:
         outfile.writelines(read_data)
     with open(args.outputfileroot + "_locs.txt", "w") as outfile:
         outfile.writelines(outlist)
