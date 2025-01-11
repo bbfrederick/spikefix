@@ -149,6 +149,8 @@ def main():
                 args.inputfilename,
                 "-div",
                 "immean",
+                "-sub",
+                "1.0",
                 "-nan",
                 "-Tmedian",
                 "imnormmedian",
