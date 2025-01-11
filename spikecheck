@@ -310,60 +310,59 @@ def main():
     zsize = getniftihdritem("immean", "dim3", FSLBINDIR)
     print(xsize, ysize, zsize)
 
-    if not args.usemask:
-        print("not masking")
-        subprocess.call(
-            [
-                os.path.join(FSLBINDIR, "fslmaths"),
-                args.inputfilename,
-                "-div",
-                "immean",
-                "-sub",
-                "1",
-                "-nan",
-                "-abs",
-                "-thr",
-                str(abspercentthresh),
-                "-bin",
-                "-mul",
-                str(xsize),
-                "-mul",
-                str(ysize),
-                "-mul",
-                str(zsize),
-                args.outputfileroot + "_map",
-                "-odt",
-                "int",
-            ]
-        )
-    else:
+    # make a map of absolute deviations from the mean
+    subprocess.call(
+        [
+            os.path.join(FSLBINDIR, "fslmaths"),
+            args.inputfilename,
+            "-div",
+            "immean",
+            "-sub",
+            "1",
+            "-nan",
+            "-abs",
+            "abspctdev",
+            "-odt",
+            "float",
+        ]
+    )
+
+    # mask if we're going to
+    if args.usemask:
         print("masking")
         subprocess.call(
             [
                 os.path.join(FSLBINDIR, "fslmaths"),
-                args.inputfilename,
-                "-div",
-                "immean",
-                "-sub",
-                "1",
-                "-nan",
-                "-abs",
+                "abspctdev",
                 "-mul",
                 "immask",
-                "-thr",
-                str(abspercentthresh),
-                "-bin",
-                "-mul",
-                str(xsize),
-                "-mul",
-                str(ysize),
-                "-mul",
-                str(zsize),
-                args.outputfileroot + "_map",
+                "abspctdev",
                 "-odt",
-                "int",
+                "float",
             ]
         )
+    else:
+        print("not masking")
+
+    # now make the binary map of voxels that exceed threshold
+    subprocess.call(
+        [
+            os.path.join(FSLBINDIR, "fslmaths"),
+            "abspctdev",
+            "-thr",
+            str(abspercentthresh),
+            "-bin",
+            "-mul",
+            str(xsize),
+            "-mul",
+            str(ysize),
+            "-mul",
+            str(zsize),
+            args.outputfileroot + "_map",
+            "-odt",
+            "int",
+        ]
+    )
 
     subprocess.call(
         [
@@ -397,7 +396,7 @@ def main():
         outfile.writelines(loctclist)
 
     rmcmd = ["rm", "immask.nii.gz", "immean.nii.gz"]
-    subprocess.call(rmcmd)
+    # subprocess.call(rmcmd)
 
     print(len(outlist), "spikes found")
 
