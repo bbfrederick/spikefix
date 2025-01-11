@@ -383,11 +383,11 @@ def main():
             "-i",
             args.outputfileroot + "_map",
             "-o",
-            args.outputfileroot + "_tc.txt",
+            "unscaledtc.txt",
         ]
     )
 
-    with open(args.outputfileroot + "_tc.txt", "r") as infile:
+    with open("unscaledtc.txt", "r") as infile:
         read_data = infile.read().split("\n")
 
     numlines = len(read_data) - 1
@@ -425,14 +425,14 @@ def main():
         else:
             loctclist.append("0\n")
 
-    with open(args.outputfileroot + "_newtc.txt", "w") as outfile:
+    with open(args.outputfileroot + "_tc.txt", "w") as outfile:
         outfile.writelines(newtc_data)
     with open(args.outputfileroot + "_locs.txt", "w") as outfile:
         outfile.writelines(outlist)
     with open(args.outputfileroot + "_loctc.txt", "w") as outfile:
         outfile.writelines(loctclist)
 
-    rmcmd = ["rm", "immask.nii.gz", "immean.nii.gz"]
+    rmcmd = ["rm", "immask.nii.gz", "immean.nii.gz", "unscaledtc.txt"]
     if not args.debug:
         subprocess.call(rmcmd)
 
