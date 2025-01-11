@@ -402,7 +402,7 @@ def main():
         themedian = statistics.median(numvox_tc)
         if args.debug:
             print("themedian", themedian)
-        demedianed = []
+        absdemedianed = []
         for idx in range(numlines):
             absdemedianed.append(abs(numvox_tc[idx] - themedian))
         voxMAD = statistics.mean(absdemedianed)
