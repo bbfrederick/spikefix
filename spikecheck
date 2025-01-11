@@ -277,17 +277,16 @@ def main():
             "imMADpct",
             "-k",
             "immask",
-            "-m",
+            "-P",
+            "50",
         ]
-        meanMAD = (
+        meanMAD = float(
             subprocess.check_output(statscmd)
             .decode("latin-1")
             .split("\n")[0]
             .split()[0]
         )
-        print(meanMAD)
-        meanMAD = float(meanMAD)
-        estimatedthresh = 3.0 * 1.4826 * meanMAD  # roughtly 3 sigma
+        estimatedthresh = 3.0 * 1.4826 * meanMAD  # roughly 3 sigma
         args.percentthresh = estimatedthresh
 
     abspercentthresh = abs(args.percentthresh)
