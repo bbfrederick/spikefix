@@ -412,11 +412,10 @@ def main():
     outlist = []
     loctclist = []
     newtc_data = []
-    print("multiplier:", multiplier)
     for idx in range(numlines):
         newtc_data.append(str(numvox_tc[idx]) + "\n")
         print(idx, read_data[idx])
-        if read_data[idx] > args.numvoxthresh:
+        if numvox_tc[idx] > args.numvoxthresh:
             outlist.append(str(idx) + "\n")
             print("threshhold exceeded")
             loctclist.append("1\n")
