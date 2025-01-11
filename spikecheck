@@ -161,6 +161,19 @@ def main():
         print("FSL found at", FSLDIR)
     FSLBINDIR = os.path.join(FSLDIR, "bin")
 
+    # first make the mean file
+    subprocess.call(
+        [
+            os.path.join(FSLBINDIR, "fslmaths"),
+            args.inputfilename,
+            "-Tmean",
+            "immean",
+            "-odt",
+            "float",
+        ]
+    )
+
+    # load or generate a mask
     if args.usemask:
         if args.maskfile is None:
             statscmd = [os.path.join(FSLBINDIR, "fslstats"), "immean", "-r"]
@@ -189,7 +202,7 @@ def main():
                 [
                     "cp",
                     args.maskfile,
-                    "immean",
+                    "immask.nii.gz",
                 ]
             )
     else:
