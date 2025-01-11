@@ -152,7 +152,8 @@ def main():
                 "-sub",
                 "1.0",
                 "-nan",
-                "imnorm" "-odt",
+                "imnorm",
+                "-odt",
                 "float",
             ]
         )
