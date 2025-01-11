@@ -218,6 +218,8 @@ def main():
                 "float",
             ]
         )
+
+    # estimate the percentage threshold using the MAD, if requested
     if args.estimatepctthresh:
         subprocess.call(
             [
@@ -228,6 +230,8 @@ def main():
                 "-sub",
                 "1.0",
                 "-nan",
+                "-mul",
+                "immask",
                 "imnorm",
                 "-odt",
                 "float",
