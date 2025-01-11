@@ -92,7 +92,7 @@ def _get_parser():
         default=150,
     )
     parser.add_argument(
-        "--mask",
+        "--maskfile",
         dest="maskfile",
         action="store",
         metavar="FILE",
@@ -264,11 +264,29 @@ def main():
                 "imdiff",
                 "-abs",
                 "-Tmedian",
-                "imMAD",
+                "-mul",
+                "100.0",
+                "imMADpct",
                 "-odt",
                 "float",
             ]
         )
+        statscmd = [
+            os.path.join(FSLBINDIR, "fslstats"),
+            "imMADpct",
+            "-k",
+            "immask",
+            "-m",
+        ]
+        meanMAD = (
+            subprocess.check_output(statscmd)
+            .decode("latin-1")
+            .split("\n")[0]
+            .split()[0]
+        )
+        estimatedthresh = 3.0 * 1.4826 * meanMAD  # roughtly 3 sigma
+        args.percentthresh = estimatedthresh
+
     abspercentthresh = abs(args.percentthresh)
     sgnpercentthresh = args.percentthresh / abspercentthresh
 
