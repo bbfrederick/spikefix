@@ -396,15 +396,18 @@ def main():
     multiplier = float(xsize * ysize * zsize)
     numvox_tc = []
     for idx in range(numlines):
-        thisval = int(float(read_data[idx].strip()) * multiplier)
-        numvox_tc.append(thisval)
+        numvox_tc.append(int(float(read_data[idx].strip()) * multiplier))
 
     if args.estimatenumvoxthresh:
         themedian = statistics.median(numvox_tc)
+        if debug:
+            print("themedian", themedian)
         demedianed = []
         for idx in range(numlines):
-            demedianed.append(abs(numvox_tc[idx] - themedian))
-        voxMAD = statistics.mean(demedianed)
+            absdemedianed.append(abs(numvox_tc[idx] - themedian))
+        voxMAD = statistics.mean(absdemedianed)
+        if debug:
+            print("voxMAD", voxMAD)
         estimatedvoxthresh = 3.0 * 1.4826 * voxMAD
         args.numvoxthresh = int(estimatedvoxthresh + 0.5)
         print("numvoxthresh set to ", args.numvoxthresh)
