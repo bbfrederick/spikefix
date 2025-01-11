@@ -16,6 +16,18 @@ defaultpercentthresh = 3.0
 defaultnumvoxels = 150
 
 
+def is_valid_file(parser, arg):
+    """
+    Check if argument is existing file.
+    """
+    thefilename = arg
+
+    if not os.path.isfile(thefilename) and thefilename is not None:
+        parser.error("The file {0} does not exist!".format(thefilename))
+
+    return arg
+
+
 def is_float(parser, arg):
     """
     Check if argument is float or auto.
@@ -80,11 +92,29 @@ def _get_parser():
         default=150,
     )
     parser.add_argument(
+        "--mask",
+        dest="maskfile",
+        action="store",
+        metavar="FILE",
+        type=lambda x: is_valid_file(parser, x),
+        help=(
+            "Mask file to limit voxels used to find spikes. If no mask is provided, one will be generated."
+        ),
+        default=None,
+    )
+    parser.add_argument(
         "--estimatepctthresh",
         dest="estimatepctthresh",
         action="store_true",
         help=("Estimate the percentage threshold."),
         default=False,
+    )
+    parser.add_argument(
+        "--nomask",
+        dest="usemask",
+        action="store_false",
+        help=("Do not mask the image."),
+        default=True,
     )
 
     return parser
@@ -131,17 +161,50 @@ def main():
         print("FSL found at", FSLDIR)
     FSLBINDIR = os.path.join(FSLDIR, "bin")
 
-    subprocess.call(
-        [
-            os.path.join(FSLBINDIR, "fslmaths"),
-            args.inputfilename,
-            "-Tmean",
-            "immean",
-            "-odt",
-            "float",
-        ]
-    )
-
+    if args.usemask:
+        if args.maskfile is None:
+            statscmd = [os.path.join(FSLBINDIR, "fslstats"), "immean", "-r"]
+            statscmdresult = (
+                subprocess.check_output(statscmd)
+                .decode("latin-1")
+                .split("\n")[0]
+                .split()[1]
+            )
+            thresh = float(statscmdresult) / 20.0
+            print("thresh:", thresh)
+            subprocess.call(
+                [
+                    os.path.join(FSLBINDIR, "fslmaths"),
+                    "immean",
+                    "-thr",
+                    str(thresh),
+                    "-bin",
+                    "immask",
+                    "-odt",
+                    "float",
+                ]
+            )
+        else:
+            subprocess.call(
+                [
+                    "cp",
+                    args.maskfile,
+                    "immean",
+                ]
+            )
+    else:
+        subprocess.call(
+            [
+                os.path.join(FSLBINDIR, "fslmaths"),
+                "immean",
+                "-mul",
+                "0.0",
+                "-add",
+                "1.0",
+                "-odt",
+                "float",
+            ]
+        )
     if args.estimatepctthresh:
         subprocess.call(
             [
@@ -189,7 +252,6 @@ def main():
                 "float",
             ]
         )
-
     abspercentthresh = abs(args.percentthresh)
     sgnpercentthresh = args.percentthresh / abspercentthresh
 
@@ -199,26 +261,6 @@ def main():
         ", voxel threshold ",
         args.numvoxthresh,
     )
-
-    statscmd = [os.path.join(FSLBINDIR, "fslstats"), "immean", "-r"]
-    statscmdresult = (
-        subprocess.check_output(statscmd).decode("latin-1").split("\n")[0].split()[1]
-    )
-    thresh = float(statscmdresult) / 20.0
-    print("thresh:", thresh)
-    subprocess.call(
-        [
-            os.path.join(FSLBINDIR, "fslmaths"),
-            "immean",
-            "-thr",
-            str(thresh),
-            "-bin",
-            "immask",
-            "-odt",
-            "float",
-        ]
-    )
-
     xsize = getniftihdritem("immean", "dim1", FSLBINDIR)
     ysize = getniftihdritem("immean", "dim2", FSLBINDIR)
     zsize = getniftihdritem("immean", "dim3", FSLBINDIR)
