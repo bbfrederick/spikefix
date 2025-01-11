@@ -395,7 +395,7 @@ def main():
     outlist = []
     loctclist = []
     for idx in range(numlines):
-        read_data[idx] = int(xsize * ysize * zsize * read_data[i])
+        read_data[idx] = int(xsize * ysize * zsize * read_data[idx])
         print(idx, read_data[idx])
         if int(read_data[idx]) > args.numvoxthresh:
             outlist.append(str(idx) + "\n")
