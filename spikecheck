@@ -162,6 +162,8 @@ def main():
             [
                 os.path.join(FSLBINDIR, "fslmaths"),
                 args.inputfilename,
+                "-div",
+                "immean",
                 "-sub",
                 "imnormmedian",
                 "-abs",
