@@ -221,6 +221,7 @@ def main():
 
     # estimate the percentage threshold using the MAD, if requested
     if args.estimatepctthresh:
+        print("estimating percentage threshold")
         subprocess.call(
             [
                 os.path.join(FSLBINDIR, "fslmaths"),
@@ -284,6 +285,8 @@ def main():
             .split("\n")[0]
             .split()[0]
         )
+        print(meanMAD)
+        meanMAD = float(meanMAD)
         estimatedthresh = 3.0 * 1.4826 * meanMAD  # roughtly 3 sigma
         args.percentthresh = estimatedthresh
 
