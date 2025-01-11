@@ -417,12 +417,12 @@ def main():
     newtc_data = []
     for idx in range(numlines):
         newtc_data.append(str(numvox_tc[idx]) + "\n")
-        print(idx, numvox_tc[idx])
         if numvox_tc[idx] > args.numvoxthresh:
             outlist.append(str(idx) + "\n")
-            print("threshhold exceeded")
+            print(idx, numvox_tc[idx], "threshhold exceeded")
             loctclist.append("1\n")
         else:
+            print(idx, numvox_tc[idx])
             loctclist.append("0\n")
 
     with open(args.outputfileroot + "_tc.txt", "w") as outfile:
