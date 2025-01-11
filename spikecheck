@@ -395,9 +395,10 @@ def main():
     outlist = []
     loctclist = []
     multiplier = xsize * ysize * zsize
+    print("multiplier:", multiplier)
     for idx in range(numlines):
-        read_data[idx] = int(float(read_data[idx]) * multiplier)
         print(idx, read_data[idx])
+        print(float(read_data[idx]))
         if int(read_data[idx]) > args.numvoxthresh:
             outlist.append(str(idx) + "\n")
             print("threshhold exceeded")
