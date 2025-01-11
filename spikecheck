@@ -79,6 +79,13 @@ def _get_parser():
         ),
         default=150,
     )
+    parser.add_argument(
+        "--estimatepctthresh",
+        dest="estimatepctthresh",
+        action="store_true",
+        help=("Estimate the percentage threshold."),
+        default=False,
+    )
 
     return parser
 
@@ -124,15 +131,6 @@ def main():
         print("FSL found at", FSLDIR)
     FSLBINDIR = os.path.join(FSLDIR, "bin")
 
-    abspercentthresh = abs(args.percentthresh)
-    sgnpercentthresh = args.percentthresh / abspercentthresh
-
-    print(
-        "using threshold percentage of ",
-        abspercentthresh,
-        ", voxel threshold ",
-        args.numvoxthresh,
-    )
     subprocess.call(
         [
             os.path.join(FSLBINDIR, "fslmaths"),
@@ -143,6 +141,45 @@ def main():
             "float",
         ]
     )
+
+    if args.estimatepctthresh:
+        subprocess.call(
+            [
+                os.path.join(FSLBINDIR, "fslmaths"),
+                args.inputfilename,
+                "-div",
+                "immean",
+                "-nan",
+                "-Tmedian",
+                "imnormmedian",
+                "-odt",
+                "float",
+            ]
+        )
+        subprocess.call(
+            [
+                os.path.join(FSLBINDIR, "fslmaths"),
+                args.inputfilename,
+                "-sub",
+                "imnormmedian",
+                "-abs",
+                "-Tmedian",
+                "imMAD",
+                "-odt",
+                "float",
+            ]
+        )
+
+    abspercentthresh = abs(args.percentthresh)
+    sgnpercentthresh = args.percentthresh / abspercentthresh
+
+    print(
+        "using threshold percentage of ",
+        abspercentthresh,
+        ", voxel threshold ",
+        args.numvoxthresh,
+    )
+
     statscmd = [os.path.join(FSLBINDIR, "fslstats"), "immean", "-r"]
     statscmdresult = (
         subprocess.check_output(statscmd).decode("latin-1").split("\n")[0].split()[1]
