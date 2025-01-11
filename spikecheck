@@ -123,6 +123,13 @@ def _get_parser():
         help=("Do not mask the image."),
         default=True,
     )
+    parser.add_argument(
+        "--debug",
+        dest="debug",
+        action="store_true",
+        help=("Print more extensive debugging information."),
+        default=False,
+    )
 
     return parser
 
@@ -296,6 +303,16 @@ def main():
         estimatedthresh = 3.0 * 1.4826 * meanMAD  # roughly 3 sigma
         args.percentthresh = estimatedthresh
 
+        rmcmd = [
+            "rm",
+            "imMADpct.nii.gz",
+            "imdiff.nii.gz",
+            "imnorm.nii.gz",
+            "immedianovertime.nii.gz",
+        ]
+        if not args.debug:
+            subprocess.call(rmcmd)
+
     abspercentthresh = abs(args.percentthresh)
     sgnpercentthresh = args.percentthresh / abspercentthresh
 
@@ -310,7 +327,7 @@ def main():
     zsize = getniftihdritem("immean", "dim3", FSLBINDIR)
     print(xsize, ysize, zsize)
 
-    # make a map of absolute deviations from the mean
+    # make a map of absolute percent deviations from the mean
     subprocess.call(
         [
             os.path.join(FSLBINDIR, "fslmaths"),
@@ -321,6 +338,8 @@ def main():
             "1",
             "-nan",
             "-abs",
+            "-mul",
+            "100.0",
             "abspctdev",
             "-odt",
             "float",
@@ -396,7 +415,8 @@ def main():
         outfile.writelines(loctclist)
 
     rmcmd = ["rm", "immask.nii.gz", "immean.nii.gz"]
-    # subprocess.call(rmcmd)
+    if not args.debug:
+        subprocess.call(rmcmd)
 
     print(len(outlist), "spikes found")
 
